@@ -32,38 +32,30 @@ static void print_register(unsigned int addr)
 
 int main()
 {
-    int address;    /* GPIOレジスタへの仮想アドレス(ユーザ空間) */
-    int fd;
-
-    /* メモリアクセス用のデバイスファイルを開く */
-    if ((fd = open("/dev/mem", O_RDWR | O_SYNC)) < 0) {
-        perror("open");
-        return -1;
+    int file = open("/dev/mem", O_RDWR | O_SYNC);
+    if (file < 0) {
+        perror("file open error");
+        return file;
     }
 
-    /* ARM(CPU)から見た物理アドレス → 仮想アドレスへのマッピング */
-    address = (int)mmap(NULL, REG_ADDR_GPIO_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, REG_ADDR_GPIO_BASE);
+    unsigned int address = (int)mmap(NULL, REG_ADDR_GPIO_LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, file, REG_ADDR_GPIO_BASE);
     if (address == MAP_FAILED) {
         perror("mmap");
-        close(fd);
+        close(file);
         return -1;
     }
 
-    /* GPIO4を出力に設定 */
     set_register(address + REG_ADDR_GPIO_GPFSEL_0, 1 << 17);
 
-    /* GPIO4をHigh出力 */
     set_register(address + REG_ADDR_GPIO_OUTPUT_SET_0, 1 << 17);
     print_register(address + REG_ADDR_GPIO_LEVEL_0);
     sleep(2);
 
-    /* GPIO4をLow出力 */
     set_register(address + REG_ADDR_GPIO_OUTPUT_CLR_0, 1 << 17);
     print_register(address + REG_ADDR_GPIO_LEVEL_0);
 
-    /* 使い終わったリソースを解放する */
     munmap((void*)address, REG_ADDR_GPIO_LENGTH);
-    close(fd);
+    close(file);
 
     return 0;
 }
