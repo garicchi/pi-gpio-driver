@@ -23,7 +23,7 @@ static unsigned int major; // デバイスのメジャー番号(自動取得)
 static struct cdev hoge_cdev; // キャラクタデバイス
 static struct class *hoge_class = NULL; // udevが認識するためのデバイスクラス
 
-// raspberry piのIO関連
+// raspberry piのメモリマップドI/Oアドレス
 #define REG_ADDR_BASE 0x3F000000
 #define REG_ADDR_GPIO_BASE (REG_ADDR_BASE + 0x00200000)
 #define REG_ADDR_GPIO_GPFSEL_0 0x0000
@@ -52,13 +52,15 @@ static void print_register(unsigned int addr)
 static int hoge_open(struct inode *inode, struct file *file)
 {
     printk("[%s] open", DRIVER_NAME);
-    /* ARM(CPU)から見た物理アドレス → 仮想アドレス(カーネル空間)へのマッピング */
-    int address = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_GPFSEL_0, 4);
-
-    /* GPIO4を出力に設定 */
-    set_register(address, 1 << 12);
-
-    iounmap((void*)address);
+    // GPIO Function Selectレジスタを設定
+    // カーネルも仮想空間上で動くので物理アドレスを仮想アドレスに変換する
+    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_GPFSEL_0, 1);
+    // GPIO 4を出力に設定(12ビット目)
+    set_register(addr, 1 << 12);
+    // GPIO 3を入力に設定(9ビット目)
+    set_register(addr, 0 << 9);
+    // 仮想アドレスのマッピングを解除
+    iounmap((void*)addr);
 
     return 0;
 }
@@ -74,15 +76,17 @@ static int hoge_release(struct inode *inode, struct file *file)
 static ssize_t hoge_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
     printk("[%s] read", DRIVER_NAME);
-    /* ARM(CPU)から見た物理アドレス → 仮想アドレス(カーネル空間)へのマッピング */
-    int address = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_LEVEL_0, 3);
-    int reg_val = get_register(address);
-    char val = (reg_val & (1 << 3)) > 0 ? '1' : '0';   /* GPIO4が0かどうかを0, 1にする */
-
-    /* GPIOの出力値をユーザへ文字として返す */
+    // GPIO Pin Levelレジスタを参照してGPIOの入力を得る
+    // 物理 -> 仮想アドレスマッピング
+    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_LEVEL_0, 1);
+    // Pin Levelレジスタの値を得る
+    int reg_val = get_register(addr);
+    // 3ビット目(GPIO3)の値を取り出し、1か0にする
+    char val = (reg_val & (1 << 3)) > 0 ? '1' : '0';
+    // 値をユーザーへ返す
     put_user(val + '\0', &buf[0]);
-
-    iounmap((void*)address);
+    // 仮想アドレスのマップを解除
+    iounmap((void*)addr);
     return 1;
 }
 
@@ -90,26 +94,27 @@ static ssize_t hoge_read(struct file *filp, char __user *buf, size_t count, loff
 static ssize_t hoge_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
     printk("[%s] write", DRIVER_NAME);
-    int address = -1;
-    char outValue;
-
-    /* ユーザが設定したGPIOへの出力値を取得 */
-    get_user(outValue, &buf[0]);
-    printk("%d", outValue);
-
-    /* ARM(CPU)から見た物理アドレス → 仮想アドレス(カーネル空間)へのマッピング */
-    if(outValue == '1') {
-        /* '1'ならSETする */
-        address = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_SET_0, 4);
-    } else if (outValue == '0') {
-        /* '0'ならCLRする */
-        address = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_CLR_0, 4);
+    // GPIO Pin SetレジスタとGPIO Pin Clearレジスタを使って出力を行う
+    // ユーザーからの入力を受け取る
+    char userVal;
+    get_user(userVal, &buf[0]);
+    printk("%d", userVal);
+    int addr = -1;
+    // ユーザーの入力値によってHighにするかLowにするかを分岐
+    if(userVal == '1') {
+        // 1ならPin Setレジスタ
+        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_SET_0, 1);
+    } else if (userVal == '0') {
+        // 0ならPin Clearレジスタ
+        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_CLR_0, 1);
     }
 
-    if (address != -1) {
-        set_register(address, 1 << 4);
-        iounmap((void*)address);
-        print_register(address);
+    // 仮想アドレスを取得できたなら、レジスタに書き込む
+    if (addr != -1) {
+        // GPIO4なので4bit目
+        set_register(addr, 1 << 4);
+        iounmap((void*)addr);
+        print_register(addr);
     }
 
 
