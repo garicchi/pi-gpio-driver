@@ -54,11 +54,9 @@ static int hoge_open(struct inode *inode, struct file *file)
     printk("[%s] open", DRIVER_NAME);
     // GPIO Function Selectレジスタを設定
     // カーネルも仮想空間上で動くので物理アドレスを仮想アドレスに変換する
-    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_GPFSEL_0, 1);
+    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_GPFSEL_0, 15);
     // GPIO 4を出力に設定(12ビット目)
     set_register(addr, 1 << 12);
-    // GPIO 3を入力に設定(9ビット目)
-    set_register(addr, 0 << 9);
     // 仮想アドレスのマッピングを解除
     iounmap((void*)addr);
 
@@ -78,7 +76,7 @@ static ssize_t hoge_read(struct file *filp, char __user *buf, size_t count, loff
     printk("[%s] read", DRIVER_NAME);
     // GPIO Pin Levelレジスタを参照してGPIOの入力を得る
     // 物理 -> 仮想アドレスマッピング
-    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_LEVEL_0, 1);
+    int addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_LEVEL_0, 3);
     // Pin Levelレジスタの値を得る
     int reg_val = get_register(addr);
     // 3ビット目(GPIO3)の値を取り出し、1か0にする
@@ -103,10 +101,10 @@ static ssize_t hoge_write(struct file *filp, const char __user *buf, size_t coun
     // ユーザーの入力値によってHighにするかLowにするかを分岐
     if(userVal == '1') {
         // 1ならPin Setレジスタ
-        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_SET_0, 1);
+        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_SET_0, 5);
     } else if (userVal == '0') {
         // 0ならPin Clearレジスタ
-        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_CLR_0, 1);
+        addr = (int)ioremap_nocache(REG_ADDR_GPIO_BASE + REG_ADDR_GPIO_OUTPUT_CLR_0, 5);
     }
 
     // 仮想アドレスを取得できたなら、レジスタに書き込む
