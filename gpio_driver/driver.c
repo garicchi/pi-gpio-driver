@@ -24,12 +24,12 @@ static struct cdev hoge_cdev; // キャラクタデバイス
 static struct class *hoge_class = NULL; // udevが認識するためのデバイスクラス
 
 // raspberry piのメモリマップドI/Oアドレス
-#define REG_ADDR_BASE 0x3F000000
-#define REG_ADDR_GPIO_BASE (REG_ADDR_BASE + 0x00200000)
-#define REG_ADDR_GPIO_GPFSEL_0 0x0000
-#define REG_ADDR_GPIO_OUTPUT_SET_0 0x001C
-#define REG_ADDR_GPIO_OUTPUT_CLR_0 0x0028
-#define REG_ADDR_GPIO_LEVEL_0 0x0034
+#define REG_ADDR_BASE 0x3F000000  // IOペリフェラルの開始アドレス
+#define REG_ADDR_GPIO_BASE (REG_ADDR_BASE + 0x00200000) // GPIOの開始アドレス
+#define REG_ADDR_GPIO_GPFSEL_0 0x0000  // GPIO Function Selectレジスタのアドレス
+#define REG_ADDR_GPIO_OUTPUT_SET_0 0x001C  // GPIO Pin Setレジスタのアドレス
+#define REG_ADDR_GPIO_OUTPUT_CLR_0 0x0028  // GPIO Pin Clearレジスタのアドレス
+#define REG_ADDR_GPIO_LEVEL_0 0x0034  // GPIO Pin Levelレジスタのアドレス
 
 
 static void set_register(unsigned int addr, unsigned int val)
@@ -114,7 +114,6 @@ static ssize_t hoge_write(struct file *filp, const char __user *buf, size_t coun
         iounmap((void*)addr);
         print_register(addr);
     }
-
 
     return 1;
 }
